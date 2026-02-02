@@ -231,11 +231,25 @@ export async function preGenerateNextAction(
 
   // Resolve sourceReferences documentId to filename
   const resolveSourceReferences = (
-    refs: { documentId: string; pageNumber?: number | null }[] | null
+    refs: unknown
   ): SourceReference[] => {
     if (!refs) return [];
-    return refs.map((ref) => ({
-      filename: documentMap.get(ref.documentId) || "Unknown",
+
+    // Handle JSON string
+    let parsed = refs;
+    if (typeof refs === "string") {
+      try {
+        parsed = JSON.parse(refs);
+      } catch {
+        return [];
+      }
+    }
+
+    // Ensure it's an array
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((ref: { documentId?: string; pageNumber?: number | null }) => ({
+      filename: ref.documentId ? (documentMap.get(ref.documentId) || "Unknown") : "Unknown",
       pageNumber: ref.pageNumber ?? null,
     }));
   };
@@ -253,9 +267,7 @@ export async function preGenerateNextAction(
       extractedText: item.extractedText,
       confidenceScore: item.confidenceScore,
       userComment: item.userComment,
-      sourceReferences: resolveSourceReferences(
-        item.sourceReferences as { documentId: string; pageNumber?: number | null }[] | null
-      ),
+      sourceReferences: resolveSourceReferences(item.sourceReferences),
     })),
   };
 
