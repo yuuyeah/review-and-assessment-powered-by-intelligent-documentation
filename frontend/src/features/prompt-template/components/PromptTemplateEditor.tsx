@@ -14,12 +14,6 @@ import { useToolConfigurations } from "../../tool-configuration/hooks/useToolCon
 
 // Next Action用テンプレート変数の定義
 const NEXT_ACTION_TEMPLATE_VARIABLES = [
-  { variable: "{{checklist_name}}", key: "checklist_name" },
-  { variable: "{{pass_count}}", key: "pass_count" },
-  { variable: "{{fail_count}}", key: "fail_count" },
-  { variable: "{{failed_items}}", key: "failed_items" },
-  { variable: "{{user_overrides}}", key: "user_overrides" },
-  { variable: "{{document_info}}", key: "document_info" },
   { variable: "{{all_results}}", key: "all_results" },
 ];
 
@@ -209,7 +203,8 @@ export const PromptTemplateEditor: React.FC<PromptTemplateEditorProps> = ({
                       outline
                       size="sm"
                       onClick={() => handleInsertVariable(variable)}
-                      disabled={isSubmitting}>
+                      disabled={isSubmitting}
+                      className="whitespace-nowrap">
                       {t("promptTemplate.insert")}
                     </Button>
                   </div>

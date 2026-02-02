@@ -22,36 +22,24 @@ declare const console: {
 const DEFAULT_NEXT_ACTION_PROMPT = `
 You are an AI assistant that generates concise, actionable next steps based on document review results.
 
-## Review Target Documents
-{{document_info}}
-
-## Checklist: {{checklist_name}}
-
-## Review Results Summary
-- Passed: {{pass_count}} items
-- Failed: {{fail_count}} items
-
-## Failed Item Details
-{{failed_items}}
-
-## User Judgment Overrides
-{{user_overrides}}
+## Review Results
+{{all_results}}
 
 ## Output Format
 Generate a markdown-formatted response. For each failed item, output in this format:
 
 1. **[Check item name]**
-   - 箇所/Location: [Specific location in the document]
-   - 対応/Action: [Concrete action to take]
+   - Location: [filename, page number]
+   - Action: [Concrete action to take]
 
 ## Guidelines
 - Use heading level 3 (###) or lower - never use h1 or h2
 - Be concise - one item per failed check
-- Specify the exact location (file name, section, field)
+- Specify the exact location (filename, page number)
 - Provide concrete action, not general advice
 - Do NOT include general improvement suggestions
 - Do NOT include warnings or disclaimers
-- IMPORTANT: Output ENTIRELY in the same language as the input document (headings, labels, content - all in one language, no mixing)
+- IMPORTANT: Output ENTIRELY in the same language as the input document
 `;
 
 export interface PreGenerateNextActionParams {
@@ -60,44 +48,27 @@ export interface PreGenerateNextActionParams {
 }
 
 interface TemplateData {
-  checklistName: string;
-  passCount: number;
-  failCount: number;
-  failedItems: FailedItem[];
-  userOverrides: UserOverride[];
-  allResults: ReviewResult[];
-  documents: DocumentInfo[];
+  allResults: EnrichedReviewResult[];
 }
 
-interface FailedItem {
+interface EnrichedReviewResult {
   checkList: {
     name: string;
-    description?: string | null;
+    description: string | null;
+    parentName: string | null;
   };
   result: string | null;
-  explanation?: string | null;
-  extractedText?: string | null;
-  confidenceScore?: number | null;
+  userOverride: boolean;
+  explanation: string | null;
+  extractedText: string | null;
+  confidenceScore: number | null;
+  userComment: string | null;
+  sourceReferences: SourceReference[];
 }
 
-interface UserOverride {
-  checkList: {
-    name: string;
-  };
-  result: string | null;
-  userComment?: string | null;
-}
-
-interface ReviewResult {
-  checkList: {
-    name: string;
-  };
-  result: string | null;
-  userOverride?: boolean;
-}
-
-interface DocumentInfo {
+interface SourceReference {
   filename: string;
+  pageNumber: number | null;
 }
 
 interface ToolConfigurationOutput {
@@ -233,7 +204,7 @@ export async function preGenerateNextAction(
     console.log(`[PreGenerateNextAction] Using default prompt`);
   }
 
-  // 5. Get review results
+  // 5. Get review results with parent hierarchy
   const reviewResults = await db.reviewResult.findMany({
     where: { reviewJobId },
     include: {
@@ -242,47 +213,54 @@ export async function preGenerateNextAction(
           id: true,
           name: true,
           description: true,
+          parent: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
   });
 
   // 6. Prepare template variable data
-  const failedItems = reviewResults.filter(
-    (r) => r.result === "fail" && !r.userOverride
+  // Create documentId -> filename map for sourceReferences resolution
+  const documentMap = new Map(
+    reviewJob.documents.map((doc) => [doc.id, doc.filename])
   );
-  const userOverrides = reviewResults.filter((r) => r.userOverride);
-  const passCount = reviewResults.filter((r) => r.result === "pass").length;
-  const failCount = reviewResults.filter((r) => r.result === "fail").length;
+
+  // Resolve sourceReferences documentId to filename
+  const resolveSourceReferences = (
+    refs: { documentId: string; pageNumber?: number | null }[] | null
+  ): SourceReference[] => {
+    if (!refs) return [];
+    return refs.map((ref) => ({
+      filename: documentMap.get(ref.documentId) || "Unknown",
+      pageNumber: ref.pageNumber ?? null,
+    }));
+  };
 
   const templateData: TemplateData = {
-    checklistName: reviewJob.checkListSet.name,
-    passCount,
-    failCount,
-    failedItems: failedItems.map((item) => ({
+    allResults: reviewResults.map((item) => ({
       checkList: {
         name: item.checkList.name,
         description: item.checkList.description,
+        parentName: item.checkList.parent?.name ?? null,
       },
       result: item.result,
+      userOverride: item.userOverride,
       explanation: item.explanation,
       extractedText: item.extractedText,
       confidenceScore: item.confidenceScore,
-    })),
-    userOverrides: userOverrides.map((item) => ({
-      checkList: { name: item.checkList.name },
-      result: item.result,
       userComment: item.userComment,
-    })),
-    allResults: reviewResults.map((item) => ({
-      checkList: { name: item.checkList.name },
-      result: item.result,
-      userOverride: item.userOverride,
-    })),
-    documents: reviewJob.documents.map((doc) => ({
-      filename: doc.filename,
+      sourceReferences: resolveSourceReferences(
+        item.sourceReferences as { documentId: string; pageNumber?: number | null }[] | null
+      ),
     })),
   };
+
+  const passCount = reviewResults.filter((r) => r.result === "pass").length;
+  const failCount = reviewResults.filter((r) => r.result === "fail").length;
 
   // 7. Get tool configuration if specified
   let toolConfiguration: ToolConfigurationOutput | undefined;
@@ -324,7 +302,7 @@ export async function preGenerateNextAction(
   }
 
   console.log(
-    `[PreGenerateNextAction] Prepared data: ${passCount} pass, ${failCount} fail, ${failedItems.length} failed items`
+    `[PreGenerateNextAction] Prepared data: ${passCount} pass, ${failCount} fail, ${templateData.allResults.length} total items`
   );
 
   return {

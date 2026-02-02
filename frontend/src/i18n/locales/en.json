@@ -356,13 +356,7 @@
     "templateVariables": "Template Variables",
     "insert": "Insert",
     "variables": {
-      "checklist_name": "Name of the checklist",
-      "pass_count": "Number of passed items",
-      "fail_count": "Number of failed items",
-      "failed_items": "Details of failed items",
-      "user_overrides": "Items with user overrides",
-      "document_info": "Review target document info",
-      "all_results": "All review results"
+      "all_results": "All review results (includes item name, parent category, result, explanation, source document/page number, etc.)"
     },
     "toolConfiguration": "Tool Configuration",
     "noToolConfiguration": "No Tool Configuration"

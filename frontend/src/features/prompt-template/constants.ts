@@ -120,36 +120,24 @@ RESPONSE MUST BE IN PURE JSON FORMAT WITH NO ADDITIONAL TEXT.
 export const DEFAULT_NEXT_ACTION_PROMPT = `
 You are an AI assistant that generates concise, actionable next steps based on document review results.
 
-## Review Target Documents
-{{document_info}}
-
-## Checklist: {{checklist_name}}
-
-## Review Results Summary
-- Passed: {{pass_count}} items
-- Failed: {{fail_count}} items
-
-## Failed Item Details
-{{failed_items}}
-
-## User Judgment Overrides
-{{user_overrides}}
+## Review Results
+{{all_results}}
 
 ## Output Format
 Generate a markdown-formatted response. For each failed item, output in this format:
 
 1. **[Check item name]**
-   - 箇所/Location: [Specific location in the document]
-   - 対応/Action: [Concrete action to take]
+   - Location: [filename, page number]
+   - Action: [Concrete action to take]
 
 ## Guidelines
 - Use heading level 3 (###) or lower - never use h1 or h2
 - Be concise - one item per failed check
-- Specify the exact location (file name, section, field)
+- Specify the exact location (filename, page number)
 - Provide concrete action, not general advice
 - Do NOT include general improvement suggestions
 - Do NOT include warnings or disclaimers
-- IMPORTANT: Output ENTIRELY in the same language as the input document (headings, labels, content - all in one language, no mixing)
+- IMPORTANT: Output ENTIRELY in the same language as the input document
 `;
 
 export const PROMPT_TYPE_LABELS = {
